@@ -1,0 +1,10 @@
+{
+  "secret": "whsec_YW5zZXItc2RrLWZpeHR1cmUtc2VjcmV0LTAxMjM0NTY3ODk=",
+  "headers": {
+    "webhook-id": "01938a1c-6f4e-7b21-9d2b-862c2d586419",
+    "webhook-timestamp": "1795740000",
+    "webhook-signature": "v1,bm90LXRoaXMtb25l v1,nrQabJODRo5N2lY6AUYXMl8Btkh1dqPf7gQn4SUAASs="
+  },
+  "body": "{\"type\":\"email.delivered\",\"created_at\":\"2026-11-27T03:20:00.000Z\",\"data\":{\"email\":{\"object\":\"email\",\"id\":\"01938a1c-0000-7000-8000-000000000001\",\"from\":\"Acme <hello@acme.com>\",\"to\":[\"amy@example.com\"],\"subject\":\"你好 👋\",\"tags\":{\"category\":\"welcome\"},\"created_at\":\"2026-11-27T03:19:58.000Z\"},\"smtp_response\":\"250 2.0.0 OK\"}}",
+  "now": 1795740030
+}
