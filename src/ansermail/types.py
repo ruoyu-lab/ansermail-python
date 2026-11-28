@@ -38,13 +38,9 @@ class Attachment(_AttachmentRequired, total=False):
     content_id: str
 
 
-_SendEmailRequired = TypedDict("_SendEmailRequired", {"from": Address, "to": Addresses, "subject": str})
+class _SendEmailOptions(TypedDict, total=False):
+    """What every email takes, with or without a template"""
 
-
-class SendEmailParams(_SendEmailRequired, total=False):
-    #: ``html`` or ``text``, at least one
-    html: str
-    text: str
     cc: Addresses
     bcc: Addresses
     reply_to: Addresses
@@ -54,6 +50,43 @@ class SendEmailParams(_SendEmailRequired, total=False):
     tags: Tags
     #: send later (up to 30 days)
     scheduled_at: str | datetime.datetime
+
+
+_WithContentRequired = TypedDict("_WithContentRequired", {"from": Address, "to": Addresses, "subject": str})
+
+
+class SendEmailWithContent(_WithContentRequired, _SendEmailOptions, total=False):
+    """Content written by you: ``from``, ``subject``, and ``html`` or ``text`` (at least one)"""
+
+    html: str
+    text: str
+
+
+class _TemplateRefRequired(TypedDict):
+    #: the template's id or alias
+    id: str
+
+
+class TemplateRef(_TemplateRefRequired, total=False):
+    """A template's latest published version, rendered with ``variables``"""
+
+    #: up to 1 MB of JSON; every variable the template prints must be here, or the email is refused
+    variables: dict[str, Any]
+
+
+class _WithTemplateRequired(TypedDict):
+    to: Addresses
+    template: TemplateRef
+
+
+_WithTemplateOverrides = TypedDict("_WithTemplateOverrides", {"from": Address, "subject": str}, total=False)
+
+
+class SendEmailWithTemplate(_WithTemplateRequired, _WithTemplateOverrides, _SendEmailOptions):
+    """Content from a template; ``from``, ``subject`` and ``reply_to`` given here win over the template's"""
+
+
+SendEmailParams = SendEmailWithContent | SendEmailWithTemplate
 
 
 EmailStatus = Literal[
@@ -113,6 +146,11 @@ class EmailAttachment(TypedDict):
     downloadable: bool
 
 
+class EmailTemplate(TypedDict):
+    id: str
+    version: int
+
+
 class Email(EmailSummary):
     cc: list[str]
     bcc: list[str]
@@ -121,6 +159,8 @@ class Email(EmailSummary):
     text: str | None
     headers: dict[str, str]
     attachments: list[EmailAttachment]
+    #: the template and version it was sent with; None when it had its own content or the template was deleted
+    template: EmailTemplate | None
     attempts: int
     last_error: str | None
     provider_message_id: str | None
@@ -250,8 +290,9 @@ class ForwardingRule(TypedDict):
 
 
 class _DnsRecordBase(TypedDict):
+    #: ``ownership`` (a TXT at ``_anser.<domain>``) proves the domain belongs to this workspace;
     #: ``mx`` and ``spf`` are for the bounce subdomain; ``receiving`` brings the domain's email in
-    purpose: Literal["dkim", "mx", "spf", "dmarc", "receiving"]
+    purpose: Literal["ownership", "dkim", "mx", "spf", "dmarc", "receiving"]
     name: str
     type: Literal["CNAME", "TXT", "MX"]
     value: str
@@ -265,10 +306,18 @@ class DnsRecord(_DnsRecordBase, total=False):
     conflicts: list[str]
 
 
+class DnsHost(TypedDict):
+    #: the zone the records go into: ``acme.com`` for ``mail.acme.com``
+    zone: str
+    #: ``None`` when not recognized
+    provider: Literal["cloudflare", "aliyun", "dnspod", "godaddy", "namecheap", "route53"] | None
+
+
 class Domain(TypedDict):
     object: Literal["domain"]
     id: str
     name: str
+    #: the server's SES region, the same for every domain
     region: str
     status: Literal["not_started", "pending", "verified", "failed", "temporary_failure"]
     created_at: str
@@ -278,6 +327,34 @@ class Domain(TypedDict):
     click_tracking: bool
     receiving: bool
     records: list[DnsRecord]
+    #: where the domain's DNS is hosted, from its NS records; ``None`` until found
+    dns: DnsHost | None
+
+
+class _DnsSetupResultBase(TypedDict):
+    purpose: Literal["ownership", "dkim", "mx", "spf", "dmarc", "receiving"]
+    type: Literal["CNAME", "TXT", "MX"]
+    name: str
+    #: ``exists``: already there, left alone; ``updated``: already there but proxied, now DNS only;
+    #: ``conflict``: another value at that name, left alone; ``failed``: Cloudflare refused
+    outcome: Literal["created", "exists", "updated", "conflict", "failed"]
+
+
+class DnsSetupResult(_DnsSetupResultBase, total=False):
+    #: ``conflict`` only: the values already at that name
+    existing: list[str]
+    #: ``failed`` only: what Cloudflare said
+    message: str
+
+
+class DnsSetup(TypedDict):
+    object: Literal["dns_setup"]
+    provider: Literal["cloudflare"]
+    #: the Cloudflare zone the records went into
+    zone: str
+    results: list[DnsSetupResult]
+    #: the domain, checked again
+    domain: Domain
 
 
 class ApiKey(TypedDict):
@@ -407,6 +484,8 @@ class Quota(TypedDict):
 
 class Usage(TypedDict):
     object: Literal["usage"]
+    #: until when a new workspace has a lower daily quota (already in ``today.limit``); None when not
+    ramp_until: str | None
     today: Quota
     month: Quota
     domains: dict[str, int | None]
@@ -415,7 +494,7 @@ class Usage(TypedDict):
     retention_days: int | None
     max_retention_days: int | None
     paused_at: str | None
-    pause_reason: Literal["bounce_rate", "complaint_rate", "admin"] | None
+    pause_reason: Literal["bounce_rate", "complaint_rate", "owner_reputation", "admin"] | None
 
 
 class RequestLog(TypedDict):
@@ -430,3 +509,136 @@ class RequestLog(TypedDict):
     created_at: str
     request_body: str | None
     response_body: str | None
+
+
+# ---------------------------------------------------------------- templates
+
+#: A draft or a published version. ``subject``, ``html`` and ``text`` are Handlebars; ``from`` and ``reply_to`` are used
+#: when the email does not give its own; ``variables`` are the top-level ones it uses (``user`` for ``{{user.name}}``).
+TemplateBody = TypedDict(
+    "TemplateBody",
+    {
+        "subject": str | None,
+        "html": str | None,
+        "text": str | None,
+        "from": str | None,
+        "reply_to": list[str],
+        "variables": list[str],
+    },
+)
+
+
+class PublishedTemplateBody(TemplateBody):
+    version: int
+    published_at: str
+
+
+class Template(TypedDict):
+    object: Literal["template"]
+    id: str
+    name: str
+    #: send and look it up by this instead of the id
+    alias: str | None
+    #: what edits change; never sent
+    draft: TemplateBody
+    #: the latest published version, the one emails use; None until first published
+    published: PublishedTemplateBody | None
+    #: the draft differs from the published version (or nothing is published yet)
+    has_unpublished_changes: bool
+    created_at: str
+    updated_at: str
+
+
+class TemplateSummary(TypedDict):
+    """A template in a list: without the content; ``subject`` is the draft's"""
+
+    object: Literal["template"]
+    id: str
+    name: str
+    alias: str | None
+    subject: str | None
+    published_version: int | None
+    published_at: str | None
+    has_unpublished_changes: bool
+    created_at: str
+    updated_at: str
+
+
+_CreateTemplateRequired = TypedDict("_CreateTemplateRequired", {"name": str})
+
+#: ``alias``: 1–100 letters, digits, ``.``, ``_`` and ``-``, starting with a letter or digit, unique in the workspace.
+#: ``html`` and ``text`` up to 1 MB each; publishing needs at least one. ``from`` and ``reply_to`` are used when the
+#: email does not give its own.
+_TemplateFields = TypedDict(
+    "_TemplateFields",
+    {
+        "alias": str | None,
+        "subject": str | None,
+        "html": str | None,
+        "text": str | None,
+        "from": Address | None,
+        "reply_to": Addresses | None,
+    },
+    total=False,
+)
+
+
+class CreateTemplateParams(_CreateTemplateRequired, _TemplateFields):
+    pass
+
+
+class UpdateTemplateParams(_TemplateFields, total=False):
+    """Changes the draft only; ``None`` (or ``""``) clears a field"""
+
+    name: str
+
+
+class RenderTemplateParams(TypedDict, total=False):
+    """Content to try out: nothing is stored"""
+
+    subject: str | None
+    html: str | None
+    text: str | None
+    variables: dict[str, Any]
+
+
+class TemplateVersionSummary(TypedDict):
+    object: Literal["template_version"]
+    template_id: str
+    version: int
+    subject: str | None
+    published_at: str
+    #: the email of whoever published it from the dashboard; None through the API
+    published_by: str | None
+
+
+_TemplateVersionBody = TypedDict(
+    "_TemplateVersionBody", {"html": str | None, "text": str | None, "from": str | None, "reply_to": list[str]}
+)
+
+
+class TemplateVersion(TemplateVersionSummary, _TemplateVersionBody):
+    pass
+
+
+class TemplateRenderError(TypedDict):
+    field: Literal["subject", "html", "text"]
+    #: from 1; None when not known
+    line: int | None
+    #: ``syntax``: it does not parse; ``missing_variable``: printed but not given; ``render``: a helper failed or it
+    #: grew too large
+    code: Literal["syntax", "missing_variable", "render"]
+    message: str
+
+
+class TemplateRender(TypedDict):
+    object: Literal["template_render"]
+    #: None for a field not given or with an error
+    subject: str | None
+    html: str | None
+    text: str | None
+    variables: list[str]
+    #: sample variables shaped like the template uses them (``{{user.name}}`` is a dict, ``{{#each items}}`` a
+    #: one-item list); a starting point to edit, rendering with it misses nothing
+    suggested_variables: dict[str, Any]
+    errors: list[TemplateRenderError]

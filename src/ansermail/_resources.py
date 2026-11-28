@@ -13,7 +13,9 @@ from .types import (
     ApiKey,
     BatchResult,
     CreatedApiKey,
+    CreateTemplateParams,
     Deleted,
+    DnsSetup,
     Domain,
     Email,
     EmailEvent,
@@ -25,11 +27,18 @@ from .types import (
     ReceivedEmail,
     ReceivedSummary,
     Recipient,
+    RenderTemplateParams,
     ReplyParams,
     RequestLog,
     SendEmailParams,
     Stats,
     Suppression,
+    Template,
+    TemplateRender,
+    TemplateSummary,
+    TemplateVersion,
+    TemplateVersionSummary,
+    UpdateTemplateParams,
     Usage,
     Webhook,
     WebhookDelivery,
@@ -139,6 +148,71 @@ class Emails(_Resource):
         return cast(EmailSummary, self._http.request("POST", f"/emails/{_path(email_id)}/cancel", **options))
 
 
+class Templates(_Resource):
+    """Every call takes the template's id or its alias. Send with one: ``emails.send({"template": {...}})``."""
+
+    def create(self, params: CreateTemplateParams, **options: Any) -> Template:
+        """A new template with only a draft; publish it before sending with it"""
+        return cast(Template, self._http.request("POST", "/templates", body=dict(params), **options))
+
+    def get(self, template: str, **options: Any) -> Template:
+        return cast(Template, self._http.request("GET", f"/templates/{_path(template)}", **options))
+
+    def list(
+        self,
+        *,
+        limit: int | None = None,
+        after: str | None = None,
+        before: str | None = None,
+        q: str | None = None,
+        **options: Any,
+    ) -> Page[TemplateSummary]:
+        """One page, newest first; ``q`` matches the name and the alias"""
+        query = {"limit": limit, "after": after, "before": before, "q": q}
+        return _page(self._http.request("GET", "/templates", query=query, **options))
+
+    def list_all(self, *, limit: int | None = None, q: str | None = None, **options: Any) -> Iterator[TemplateSummary]:
+        """Every template matching, page after page"""
+        return self._http.iterate("/templates", {"limit": limit, "q": q}, **options)
+
+    def update(self, template: str, params: UpdateTemplateParams, **options: Any) -> Template:
+        """Change the name, the alias or the draft; emails keep using the published version until you publish"""
+        path = f"/templates/{_path(template)}"
+        return cast(Template, self._http.request("PATCH", path, body=dict(params), **options))
+
+    def delete(self, template: str, **options: Any) -> Deleted:
+        """Emails already sent with it stay, with ``template: None``"""
+        return cast(Deleted, self._http.request("DELETE", f"/templates/{_path(template)}", **options))
+
+    def publish(self, template: str, **options: Any) -> Template:
+        """Save the draft as the next version; emails use it from now on. Raises ``no_changes`` when nothing is new."""
+        return cast(Template, self._http.request("POST", f"/templates/{_path(template)}/publish", **options))
+
+    def duplicate(self, template: str, *, name: str | None = None, **options: Any) -> Template:
+        """A copy of the draft, without the alias and unpublished; named "Copy of …" unless you name it"""
+        body = {"name": name} if name is not None else {}
+        path = f"/templates/{_path(template)}/duplicate"
+        return cast(Template, self._http.request("POST", path, body=body, **options))
+
+    def versions(self, template: str, **options: Any) -> builtins.list[TemplateVersionSummary]:
+        """The published versions, newest first"""
+        path = f"/templates/{_path(template)}/versions"
+        return cast(list[TemplateVersionSummary], self._http.request("GET", path, **options)["data"])
+
+    def version(self, template: str, version: int, **options: Any) -> TemplateVersion:
+        path = f"/templates/{_path(template)}/versions/{version}"
+        return cast(TemplateVersion, self._http.request("GET", path, **options))
+
+    def restore(self, template: str, version: int, **options: Any) -> Template:
+        """Put a version's content back into the draft; publish to send it again"""
+        path = f"/templates/{_path(template)}/versions/{version}/restore"
+        return cast(Template, self._http.request("POST", path, **options))
+
+    def render(self, params: RenderTemplateParams, **options: Any) -> TemplateRender:
+        """Render content with variables without storing anything; every field's problems come back together"""
+        return cast(TemplateRender, self._http.request("POST", "/templates/render", body=dict(params), **options))
+
+
 class Inbox(_Resource):
     """Emails sent to your domains (with receiving on) or to the workspace's test address"""
 
@@ -213,10 +287,9 @@ class ForwardingRules(_Resource):
 
 
 class Domains(_Resource):
-    def create(self, name: str, *, region: str | None = None, **options: Any) -> Domain:
+    def create(self, name: str, **options: Any) -> Domain:
         """Creates the SES identity; add the DNS records it returns"""
-        body = {"name": name, **({"region": region} if region else {})}
-        return cast(Domain, self._http.request("POST", "/domains", body=body, **options))
+        return cast(Domain, self._http.request("POST", "/domains", body={"name": name}, **options))
 
     def list(self, **options: Any) -> builtins.list[Domain]:
         return cast(list[Domain], self._http.request("GET", "/domains", **options)["data"])
@@ -240,6 +313,14 @@ class Domains(_Resource):
     def verify(self, domain_id: str, **options: Any) -> Domain:
         """Check SES and the DNS records again now"""
         return cast(Domain, self._http.request("POST", f"/domains/{_path(domain_id)}/verify", **options))
+
+    def add_to_cloudflare(self, domain_id: str, token: str, **options: Any) -> DnsSetup:
+        """Add the records that are not in effect yet at Cloudflare, with an API token that can edit the zone's DNS.
+
+        The token is used for this call only and never stored.
+        """
+        path = f"/domains/{_path(domain_id)}/dns/cloudflare"
+        return cast(DnsSetup, self._http.request("POST", path, body={"token": token}, **options))
 
     def delete(self, domain_id: str, **options: Any) -> Deleted:
         return cast(Deleted, self._http.request("DELETE", f"/domains/{_path(domain_id)}", **options))
@@ -302,7 +383,7 @@ class Suppressions(_Resource):
     """Addresses that are never sent to"""
 
     def list(self, **params: Any) -> Page[Suppression]:
-        """Filters: limit, after, before, q"""
+        """Filters: limit, after, before, q, reason (hard_bounce, complaint or manual)"""
         query, options = _split(params)
         return _page(self._http.request("GET", "/suppressions", query=query, **options))
 

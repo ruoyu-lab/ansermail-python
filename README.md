@@ -52,6 +52,36 @@ batch["errors"]  # [{"index", "code", "message", "param"}]
 Every send, batch, reply and forward carries an idempotency key, so a retry never sends twice. Pass your own to make a
 repeated call (a job that runs again) safe too: `anser.emails.send(params, idempotency_key=f"welcome-{user.id}")`.
 
+## Templates
+
+Templates are Handlebars (`{{name}}`, `{{#if}}`, `{{#each}}`, helpers like `formatDate`). Edits change the draft; publishing
+saves it as the next version, and emails always use the latest published version. A variable the template prints but the
+call does not give refuses the email (`template_variable_missing`).
+
+```python
+anser.templates.create(
+    {
+        "name": "Welcome",
+        "alias": "welcome",  # send and look it up by this instead of the id
+        "subject": "Welcome, {{name}}",
+        "html": "<p>Hi {{name}}</p>{{#if coupon}}<p>Your code: {{coupon}}</p>{{/if}}",
+        "from": "Acme <hello@acme.com>",  # used when the email gives none
+    }
+)
+anser.templates.publish("welcome")  # version 1
+
+anser.emails.send(
+    {"to": "amy@example.com", "template": {"id": "welcome", "variables": {"name": "Amy", "coupon": "HELLO10"}}}
+)  # from, subject and reply_to given here win over the template's
+
+# try a change out without storing it; every field's problems come back together
+result = anser.templates.render({"html": "<p>{{name}}</p>", "variables": {"name": "Amy"}})
+
+anser.templates.update("welcome", {"subject": "Hello, {{name}}"})  # the draft only
+anser.templates.versions("welcome")  # [{"version", "subject", "published_at", "published_by"}]
+anser.templates.restore("welcome", 1)  # back into the draft; publish to send it again
+```
+
 ## Lists
 
 ```python

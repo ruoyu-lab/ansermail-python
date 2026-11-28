@@ -116,6 +116,37 @@ class ClientTest(unittest.TestCase):
         self.assertEqual(len(keys), 2)
         self.assertEqual(keys[0], keys[1])
 
+    def test_sends_with_a_template_and_manages_templates(self) -> None:
+        self.anser.emails.send({"to": "amy@example.com", "template": {"id": "welcome", "variables": {"name": "Amy"}}})
+        self.stub.answer = lambda req: (200, {}, {"object": "template", "id": "t1"})
+        self.anser.templates.create({"name": "Welcome", "alias": "welcome", "html": "<p>Hi {{name}}</p>"})
+        self.anser.templates.update("welcome", {"subject": "Hi {{name}}", "from": None})
+        self.anser.templates.publish("welcome")
+        self.anser.templates.restore("welcome", 2)
+        self.anser.templates.duplicate("a/b", name="Copy")
+        self.anser.templates.render({"html": "{{x}}", "variables": {"x": 1}})
+        self.stub.answer = lambda req: (200, {}, {"object": "list", "has_more": False, "data": [{"version": 1}]})
+        self.anser.templates.list(q="wel", limit=5)
+        self.assertEqual(self.anser.templates.versions("welcome"), [{"version": 1}])
+        self.assertEqual(
+            [(r["method"], r["path"], r["body"]) for r in self.stub.requests],
+            [
+                (
+                    "POST",
+                    "/v1/emails",
+                    {"to": "amy@example.com", "template": {"id": "welcome", "variables": {"name": "Amy"}}},
+                ),
+                ("POST", "/v1/templates", {"name": "Welcome", "alias": "welcome", "html": "<p>Hi {{name}}</p>"}),
+                ("PATCH", "/v1/templates/welcome", {"subject": "Hi {{name}}", "from": None}),
+                ("POST", "/v1/templates/welcome/publish", None),
+                ("POST", "/v1/templates/welcome/versions/2/restore", None),
+                ("POST", "/v1/templates/a%2Fb/duplicate", {"name": "Copy"}),
+                ("POST", "/v1/templates/render", {"html": "{{x}}", "variables": {"x": 1}}),
+                ("GET", "/v1/templates?limit=5&q=wel", None),
+                ("GET", "/v1/templates/welcome/versions", None),
+            ],
+        )
+
     def test_never_repeats_a_create_without_a_key(self) -> None:
         self.stub.answer = lambda req: error(503, "internal_error")
         with self.assertRaises(AnserError) as caught:

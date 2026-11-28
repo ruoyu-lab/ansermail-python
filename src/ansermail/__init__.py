@@ -10,6 +10,9 @@ email = anser.emails.send({
     "html": "<p>Hi Amy</p>",
     "tags": {"category": "welcome"},
 })
+
+# Or with a published template, by its alias
+anser.emails.send({"to": "amy@example.com", "template": {"id": "welcome", "variables": {"name": "Amy"}}})
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ from ._resources import (
     Recipients,
     StatsApi,
     Suppressions,
+    Templates,
     UsageApi,
     Webhooks,
 )
@@ -63,6 +67,7 @@ class Anser:
     ):
         http = Http(api_key, base_url, max_retries, timeout, headers)
         self.emails = Emails(http)
+        self.templates = Templates(http)
         self.inbox = Inbox(http)
         self.forwarding_rules = ForwardingRules(http)
         self.domains = Domains(http)
