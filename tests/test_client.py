@@ -126,7 +126,7 @@ class ClientTest(unittest.TestCase):
         self.anser.templates.duplicate("a/b", name="Copy")
         self.anser.templates.render({"html": "{{x}}", "variables": {"x": 1}})
         self.stub.answer = lambda req: (200, {}, {"object": "list", "has_more": False, "data": [{"version": 1}]})
-        self.anser.templates.list(q="wel", limit=5)
+        self.anser.templates.list(q="wel", limit=5, preview=True)
         self.assertEqual(self.anser.templates.versions("welcome"), [{"version": 1}])
         self.assertEqual(
             [(r["method"], r["path"], r["body"]) for r in self.stub.requests],
@@ -142,7 +142,7 @@ class ClientTest(unittest.TestCase):
                 ("POST", "/v1/templates/welcome/versions/2/restore", None),
                 ("POST", "/v1/templates/a%2Fb/duplicate", {"name": "Copy"}),
                 ("POST", "/v1/templates/render", {"html": "{{x}}", "variables": {"x": 1}}),
-                ("GET", "/v1/templates?limit=5&q=wel", None),
+                ("GET", "/v1/templates?limit=5&q=wel&preview=true", None),
                 ("GET", "/v1/templates/welcome/versions", None),
             ],
         )

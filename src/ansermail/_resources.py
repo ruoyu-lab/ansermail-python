@@ -166,15 +166,18 @@ class Templates(_Resource):
         after: str | None = None,
         before: str | None = None,
         q: str | None = None,
+        preview: bool | None = None,
         **options: Any,
     ) -> Page[TemplateSummary]:
-        """One page, newest first; ``q`` matches the name and the alias"""
-        query = {"limit": limit, "after": after, "before": before, "q": q}
+        """One page, newest first; ``q`` matches the name and the alias, ``preview=True`` adds ``preview`` to each"""
+        query = {"limit": limit, "after": after, "before": before, "q": q, "preview": preview}
         return _page(self._http.request("GET", "/templates", query=query, **options))
 
-    def list_all(self, *, limit: int | None = None, q: str | None = None, **options: Any) -> Iterator[TemplateSummary]:
+    def list_all(
+        self, *, limit: int | None = None, q: str | None = None, preview: bool | None = None, **options: Any
+    ) -> Iterator[TemplateSummary]:
         """Every template matching, page after page"""
-        return self._http.iterate("/templates", {"limit": limit, "q": q}, **options)
+        return self._http.iterate("/templates", {"limit": limit, "q": q, "preview": preview}, **options)
 
     def update(self, template: str, params: UpdateTemplateParams, **options: Any) -> Template:
         """Change the name, the alias or the draft; emails keep using the published version until you publish"""

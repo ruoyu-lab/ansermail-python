@@ -573,9 +573,16 @@ class Template(TypedDict):
     updated_at: str
 
 
-class TemplateSummary(TypedDict):
-    """A template in a list: without the content; ``subject`` is the draft's"""
+class TemplateSummaryPreview(TypedDict):
+    """The draft rendered with ``suggested_variables``, for thumbnails. A field with a syntax error is ``None`` and
+    ``unavailable`` is ``"error"``; when html or text is over 128 KB nothing is rendered (``"too_large"``)."""
 
+    html: str | None
+    text: str | None
+    unavailable: Literal["error", "too_large"] | None
+
+
+class _TemplateSummaryRequired(TypedDict):
     object: Literal["template"]
     id: str
     name: str
@@ -586,6 +593,13 @@ class TemplateSummary(TypedDict):
     has_unpublished_changes: bool
     created_at: str
     updated_at: str
+
+
+class TemplateSummary(_TemplateSummaryRequired, total=False):
+    """A template in a list: without the content; ``subject`` is the draft's"""
+
+    #: only when listed with ``preview=True``
+    preview: TemplateSummaryPreview
 
 
 _CreateTemplateRequired = TypedDict("_CreateTemplateRequired", {"name": str})
