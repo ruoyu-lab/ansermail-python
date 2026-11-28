@@ -231,6 +231,30 @@ class ReceivedSummary(_ReceivedFrom):
     authentication: Authentication
     preview: str | None
     size: int
+    read_at: str | None
+    """When someone in the workspace read it; None while unread. Shared by the whole workspace"""
+
+
+class InboxDomain(TypedDict):
+    """One receiving domain on the inbox's front page"""
+
+    object: Literal["inbox_domain"]
+    domain: str
+    test_address: bool
+    receiving: bool
+    total: int
+    unread: int
+    last_received_at: str | None
+
+
+class InboxSummary(TypedDict):
+    """The inbox counted by receiving domain; the totals count each email once"""
+
+    object: Literal["inbox_summary"]
+    total: int
+    unread: int
+    last_received_at: str | None
+    domains: list[InboxDomain]
 
 
 class ReceivedEmail(ReceivedSummary):

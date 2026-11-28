@@ -214,6 +214,20 @@ class ClientTest(unittest.TestCase):
             self.stub.requests[0]["path"], "/v1/inbox?to=a%40acme.com%2Cb%40acme.com&from=amy%40x.com&limit=5"
         )
 
+    def test_inbox_marks_and_deletes_in_batches(self) -> None:
+        self.stub.answer = lambda req: (200, {}, {"object": "list", "has_more": False, "data": [{"id": "r1"}]})
+        self.assertEqual(self.anser.inbox.mark(["r1", "r2"], read=True), [{"id": "r1"}])
+        self.assertEqual(self.anser.inbox.delete_many(["r1"]), [{"id": "r1"}])
+        self.anser.inbox.list(domain="acme.com", read=False)
+        self.assertEqual(
+            [(r["method"], r["path"], r["body"]) for r in self.stub.requests],
+            [
+                ("POST", "/v1/inbox/mark", {"ids": ["r1", "r2"], "read": True}),
+                ("POST", "/v1/inbox/delete", {"ids": ["r1"]}),
+                ("GET", "/v1/inbox?domain=acme.com&read=false", None),
+            ],
+        )
+
     def test_returns_bytes(self) -> None:
         self.stub.answer = lambda req: (200, {"content-type": "application/pdf"}, b"%PDF")
         self.assertEqual(self.anser.emails.attachment("e1", "a1"), b"%PDF")

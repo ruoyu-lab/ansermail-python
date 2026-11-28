@@ -96,10 +96,14 @@ for email in anser.emails.list_all(status="bounced"):
 ```python
 address = anser.inbox.address()  # the workspace's test address
 
-for received in anser.inbox.list_all(to="support@acme.com"):  # from_="…" filters by sender
+for received in anser.inbox.list_all(to="support@acme.com", read=False):  # from_="…" filters by sender
     email = anser.inbox.get(received["id"])
     print(email["stripped_text"])  # what the sender wrote, without the quoted history
     anser.inbox.reply(received["id"], {"text": "Thanks, we are on it."})
+    anser.inbox.update(received["id"], read=True)  # read state is shared by the workspace
+
+summary = anser.inbox.summary()  # unread counts, per receiving domain too
+anser.inbox.mark(ids, read=True)  # or delete_many(ids), up to 100 at a time
 
 anser.forwarding_rules.create(address="support@acme.com", forward_to="me@example.com")
 ```

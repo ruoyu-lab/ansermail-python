@@ -22,6 +22,7 @@ from .types import (
     EmailSummary,
     ForwardingRule,
     ForwardParams,
+    InboxSummary,
     ProviderStats,
     ReceivedAttachment,
     ReceivedEmail,
@@ -217,7 +218,8 @@ class Inbox(_Resource):
     """Emails sent to your domains (with receiving on) or to the workspace's test address"""
 
     def list(self, **params: Any) -> Page[ReceivedSummary]:
-        """Filters: limit, after, before, to, from_, start_date, end_date, q, kind, status, in_reply_to_email_id"""
+        """Filters: limit, after, before, to, from_, start_date, end_date, q, kind, status, in_reply_to_email_id,
+        domain (of the receiving address), read (True for read emails only, False for unread)"""
         query, options = _split(params)
         return _page(self._http.request("GET", "/inbox", query=query, **options))
 
@@ -230,9 +232,28 @@ class Inbox(_Resource):
         path = f"/inbox/{_path(email_id)}"
         return cast(ReceivedEmail, self._http.request("GET", path, query={"html_format": html_format}, **options))
 
+    def update(self, email_id: str, *, read: bool, **options: Any) -> ReceivedSummary:
+        """Mark it read (keeping the first time) or unread; shared by the whole workspace"""
+        path = f"/inbox/{_path(email_id)}"
+        return cast(ReceivedSummary, self._http.request("PATCH", path, body={"read": read}, **options))
+
+    def mark(self, ids: Sequence[str], *, read: bool, **options: Any) -> builtins.list[ReceivedSummary]:
+        """Mark up to 100 emails read or unread; returns those marked (ids not found are skipped)"""
+        body = {"ids": list(ids), "read": read}
+        return cast(list[ReceivedSummary], self._http.request("POST", "/inbox/mark", body=body, **options)["data"])
+
     def delete(self, email_id: str, **options: Any) -> Deleted:
         """Deletes it with its attachments and raw message"""
         return cast(Deleted, self._http.request("DELETE", f"/inbox/{_path(email_id)}", **options))
+
+    def delete_many(self, ids: Sequence[str], **options: Any) -> builtins.list[Deleted]:
+        """Delete up to 100 emails; returns those deleted (ids not found are skipped)"""
+        body = {"ids": list(ids)}
+        return cast(list[Deleted], self._http.request("POST", "/inbox/delete", body=body, **options)["data"])
+
+    def summary(self, **options: Any) -> InboxSummary:
+        """How many emails, and unread ones, each receiving domain has"""
+        return cast(InboxSummary, self._http.request("GET", "/inbox/summary", **options))
 
     def attachments(self, email_id: str, **params: Any) -> Page[ReceivedAttachment]:
         """Attachments with download links, in the order of the email"""
