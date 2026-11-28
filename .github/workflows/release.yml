@@ -1,0 +1,36 @@
+name: Release
+
+# Publishes to PyPI with trusted publishing: no token, PyPI trusts this workflow in the "pypi" environment.
+# Runs for a version tag (v0.2.0), or by hand for the version on main.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/anser-mail/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - name: The tag matches the version in pyproject.toml
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, pyproject.toml $version"; exit 1; }
+      - run: pip install . mypy ruff build
+      - run: ruff check .
+      - run: mypy
+      - run: python -m unittest discover -s tests
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
