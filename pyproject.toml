@@ -3,9 +3,9 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ansermail"
-version = "0.1.0"
-description = "The SDK for 鸿雁 / Anser: send and receive email through its HTTP API"
+name = "anser-mail"
+version = "0.2.0"
+description = "The SDK for 鸿雁 / Anser Mail: send and receive email through its HTTP API"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -20,11 +20,11 @@ classifiers = [
 [project.urls]
 Homepage = "https://mail.ruoyulab.dev"
 Documentation = "https://mail.ruoyulab.dev/docs/api"
-Repository = "https://github.com/ruoyu-lab/ansermail-python"
-Issues = "https://github.com/ruoyu-lab/ansermail-python/issues"
+Repository = "https://github.com/ruoyu-lab/anser-mail-python"
+Issues = "https://github.com/ruoyu-lab/anser-mail-python/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ansermail"]
+packages = ["src/anser_mail"]
 
 [tool.ruff]
 line-length = 120

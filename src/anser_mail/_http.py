@@ -14,7 +14,7 @@ from typing import Any, Generic, TypeVar
 
 from ._errors import AnserConnectionError, AnserError
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 DEFAULT_BASE_URL = "https://mail.ruoyulab.dev"
 
 T = TypeVar("T")
@@ -78,7 +78,7 @@ class Http:
         headers = {
             **self.headers,
             "Authorization": f"Bearer {self.api_key}",
-            "User-Agent": f"ansermail-python/{VERSION}",
+            "User-Agent": f"anser-mail-python/{VERSION}",
             "Accept": "*/*" if raw else "application/json",
         }
         data = None

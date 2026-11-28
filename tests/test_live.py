@@ -11,8 +11,8 @@ import os
 import unittest
 import uuid
 
-from ansermail import Anser, AnserError
-from ansermail.types import SendEmailParams
+from anser_mail import Anser, AnserError
+from anser_mail.types import SendEmailParams
 
 LIVE = {name: os.environ.get(f"ANSER_LIVE_{name}", "") for name in ("BASE_URL", "API_KEY", "FROM")}
 TO = "success@simulator.amazonses.com"

@@ -1,6 +1,6 @@
-"""The 鸿雁 / Anser SDK: send and receive email through the HTTP API.
+"""The 鸿雁 / Anser Mail SDK: send and receive email through the HTTP API.
 
-from ansermail import Anser
+from anser_mail import Anser
 
 anser = Anser("ms_…")
 email = anser.emails.send({

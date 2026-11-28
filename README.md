@@ -1,21 +1,21 @@
-# ansermail (Python)
+# anser-mail (Python)
 
-The SDK for [Anser](https://mail.ruoyulab.dev): send and receive email through its HTTP API. Python 3.10+, typed
+The SDK for [Anser Mail](https://mail.ruoyulab.dev): send and receive email through its HTTP API. Python 3.10+, typed
 (`TypedDict`s, checked with mypy `--strict`), no dependencies.
 
 ## Install
 
 ```bash
-pip install git+https://github.com/ruoyu-lab/ansermail-python
+pip install git+https://github.com/ruoyu-lab/anser-mail-python
 ```
 
-It is not on PyPI yet, so pip installs it from GitHub; add a tag such as `@v0.1.0` to pin a release.
+It is not on PyPI yet, so pip installs it from GitHub; add a tag such as `@v0.2.0` to pin a release.
 
 ## Sending
 
 ```python
 import datetime
-from ansermail import Anser
+from anser_mail import Anser
 
 anser = Anser("ms_…")  # or Anser() with ANSER_API_KEY set
 
@@ -111,7 +111,7 @@ anser.forwarding_rules.create(address="support@acme.com", forward_to="me@example
 ## Webhooks
 
 ```python
-from ansermail import WebhookVerificationError, verify_webhook
+from anser_mail import WebhookVerificationError, verify_webhook
 
 
 @app.post("/anser")
@@ -129,7 +129,7 @@ def anser_webhook():
 ## Errors
 
 ```python
-from ansermail import AnserConnectionError, AnserError
+from anser_mail import AnserConnectionError, AnserError
 
 try:
     anser.emails.send(params)

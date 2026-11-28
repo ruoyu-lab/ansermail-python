@@ -14,7 +14,7 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from ansermail import Anser, AnserConnectionError, AnserError, WebhookVerificationError, verify_webhook
+from anser_mail import Anser, AnserConnectionError, AnserError, WebhookVerificationError, verify_webhook
 
 FIXTURE = json.loads((pathlib.Path(__file__).parent / "fixtures" / "webhook.json").read_text())
 
@@ -102,7 +102,7 @@ class ClientTest(unittest.TestCase):
         self.assertEqual(req["body"]["tags"], {"category": "welcome"})
         self.assertEqual(req["headers"]["authorization"], "Bearer ms_test")
         self.assertTrue(req["headers"]["idempotency-key"].startswith("anser-"))
-        self.assertTrue(req["headers"]["user-agent"].startswith("ansermail-python/"))
+        self.assertTrue(req["headers"]["user-agent"].startswith("anser-mail-python/"))
         self.assertEqual(req["body"]["attachments"][0]["content"], base64.b64encode("你好".encode()).decode())
         self.assertEqual(req["body"]["scheduled_at"], "2026-12-01T09:00:00+00:00")
 
